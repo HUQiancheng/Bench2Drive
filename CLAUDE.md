@@ -329,6 +329,26 @@ See `docs/anno.md` for annotation format details.
 
 ## Documentation
 
+### Getting Started
+
+**For first-time users wanting to run the complete evaluation pipeline:**
+- `docs/SERVER_DEPLOYMENT_GUIDE.md` - **START HERE** - Complete step-by-step guide for deploying Bench2Drive on headless Linux servers, including:
+  - CARLA installation and headless mode configuration
+  - Environment validation with NpcAgent
+  - Running vision models (TCP)
+  - Custom model integration template
+  - Troubleshooting common issues
+
+### Technical Reference
+
 Comprehensive documentation available in `.llm/docs/`:
 - `docs_bench2drive_leaderboard_docs.md` - Full leaderboard module documentation
 - `docs_bench2drive_scenario_runner_comprehensive.md` - Full scenario_runner documentation
+
+### Model Zoo (Bench2DriveZoo)
+
+Available model branches:
+- `uniad/vad` branch: UniAD and VAD (large vision transformers, need 12-16GB VRAM)
+- `tcp/admlp` branch: TCP (ResNet-based, ~6-8GB VRAM) and ADMLP (MLP-only, minimal VRAM)
+
+**Recommended for testing:** TCP - uses camera images, suitable as template for custom vision models.

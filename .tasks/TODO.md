@@ -2,47 +2,47 @@
 
 ## 当前状态
 
-**日期**: 2024-12-20
-**阶段**: 环境配置中
+**日期**: 2024-12-21
+**阶段**: CARLA 环境验证成功，准备测试评估
 
 ---
 
 ## 已完成 ✅
 
 ### 基础设施
-- [x] AutoDL 服务器开通 (2x RTX 3090)
-- [x] CARLA 0.9.15 下载完成 (`/root/autodl-tmp/carla/CARLA_0.9.15.tar.gz`)
-- [x] Bench2Drive 仓库克隆完成
-- [x] Bench2DriveZoo 仓库克隆完成
+- [x] ~~AutoDL 服务器~~ (Driver 580 不兼容，已放弃)
+- [x] **Vast.ai 服务器配置成功**
+  - 2x RTX 3090, Driver 535.54.03, CUDA 12.2, Ubuntu 20.04
+- [x] CARLA 0.9.15 下载并运行成功
+- [x] Python 3.7 环境 (carla37) 创建成功
+- [x] CARLA Python 连接测试通过 (`SUCCESS: 0.9.15`)
 
 ### 文档
-- [x] 创建 `docs/SERVER_DEPLOYMENT_GUIDE.md` - 完整服务器部署指南
-- [x] 更新 `CLAUDE.md` - 添加文档引用
-- [x] 创建 `.tasks/ENVIRONMENT.md` - 环境说明
-- [x] 创建测试脚本 (`scripts/setup_carla.sh`, `test_carla.sh`, `test_npc_agent.sh`)
+- [x] 创建 `scripts/VASTAI_SETUP.md` - Vast.ai 完整配置指南
+- [x] 创建 `scripts/setup_vastai.sh` - 一次性设置脚本
+- [x] 创建 `scripts/run_carla_vastai.sh` - CARLA 启动脚本
+- [x] 更新 `.tasks/ENVIRONMENT.md` - 环境说明
 
-### 本地研究
-- [x] 分析 Bench2Drive 代码结构
-- [x] 分析 Agent 接口 (AutonomousAgent)
-- [x] 对比 UniAD/VAD/TCP/ADMLP 模型差异
-- [x] 确定 TCP 作为视觉模型测试模板
+### 问题解决记录
+- [x] 解决 "Refusing to run with root privileges" - 创建非 root 用户
+- [x] 解决 "GameThread timed out waiting for RenderThread" - 选择 Driver 535
+- [x] 解决 "Vulkan 无法识别 NVIDIA GPU" - 手动创建 nvidia_icd.json
 
 ---
 
 ## 进行中 🔄
 
-### 服务器环境配置
-- [ ] 解压 CARLA (`bash scripts/setup_carla.sh`)
-- [ ] 验证 Vulkan 配置
-- [ ] 测试 CARLA 启动 (`bash scripts/test_carla.sh`)
+### Bench2Drive 测试
+- [ ] 克隆 Bench2Drive 到 Vast.ai 服务器
+- [ ] 克隆 Bench2DriveZoo (模型仓库)
+- [ ] 运行 NpcAgent 评估测试
 
 ---
 
 ## 待完成 📋
 
 ### 环境验证 (优先级: 高)
-- [ ] CARLA Python 连接测试
-- [ ] NpcAgent 评估测试 (`bash scripts/test_npc_agent.sh`)
+- [ ] NpcAgent 评估测试
 - [ ] 确认整个评估流程通畅
 
 ### 模型测试 (优先级: 中)
@@ -58,33 +58,39 @@
 
 ---
 
-## 阻塞问题 ⚠️
+## 关键发现 ⚠️
 
-### 当前无阻塞
+### NVIDIA Driver 兼容性
+| Driver 版本 | CARLA 0.9.15 兼容性 |
+|-------------|---------------------|
+| 470.x | ✓ 兼容 |
+| 535.x | ✓ **已验证可用** |
+| 550+ | ✗ 不兼容 (RenderThread 崩溃) |
+| 570+ | ✗ 不兼容 |
+| 580+ | ✗ 不兼容 |
+
+### 平台选择
+- **AutoDL**: Driver 580，不兼容 CARLA，已放弃
+- **Vast.ai**: 可选择 Driver 版本，**推荐使用**
+
+---
+
+## 当前服务器信息
+
+**Vast.ai Instance**
+```
+GPU: 2x NVIDIA GeForce RTX 3090
+Driver: 535.54.03
+CUDA: 12.2
+Ubuntu: 20.04
+工作目录: ~/qch_ws/
+CARLA: ~/qch_ws/carla/
+```
 
 ---
 
 ## 下次会话待办
 
-1. 确认服务器上脚本执行结果
-2. 根据输出调试问题
-3. 继续推进 NpcAgent 测试
-4. 下载 TCP checkpoint 并测试
-
----
-
-## 笔记
-
-### CARLA 注意事项
-- 驱动 580 比较新，可能有兼容性问题，需要测试
-- 无头模式必须用 `-RenderOffScreen`
-- GPU 选择用 `-graphicsadapter=N`，不是 `CUDA_VISIBLE_DEVICES`
-
-### 模型选择
-- **ADMLP**: 最轻量，但不用图像，不适合视觉模型测试
-- **TCP**: 用 ResNet 处理图像，适合作为视觉模型模板
-- **UniAD/VAD**: 太大，需要大量显存
-
-### 评估路线
-- `bench2drive220.xml`: 完整 220 条路线
-- `drivetransformer_bench2drive_dev10.xml`: 10 条路线，用于快速测试
+1. 克隆 Bench2Drive 和 Bench2DriveZoo
+2. 运行 NpcAgent 评估测试
+3. 测试 TCP 模型

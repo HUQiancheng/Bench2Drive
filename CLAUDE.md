@@ -2,6 +2,63 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## ⚠️ CRITICAL: Development Environment & Workflow
+
+### Platform Setup (READ THIS FIRST!)
+
+**This project uses a CROSS-REGION development workflow:**
+
+```
+┌─────────────────────┐     git push/pull     ┌─────────────────────┐
+│   Germany (Dev)     │ ◄──────────────────► │   China (Experiment) │
+│                     │                       │                      │
+│ - Local PC (6GB)    │                       │ - AutoDL Server      │
+│ - Claude access ✓   │                       │ - 2x RTX 3090 (48GB) │
+│ - Code editing      │                       │ - No Claude access ✗ │
+│ - Cannot run CARLA  │                       │ - Runs CARLA & eval  │
+└─────────────────────┘                       └──────────────────────┘
+```
+
+### Key Constraints
+
+1. **Claude CANNOT directly execute commands on the experiment server**
+   - All server operations must be done via scripts
+   - User syncs code via git, then runs scripts on server
+
+2. **Server is HEADLESS** (no display)
+   - CARLA must use `-RenderOffScreen` mode
+   - No GUI debugging available
+
+3. **Network limitations in China**
+   - Slow access to foreign resources (GitHub, HuggingFace)
+   - Use `screen` for long downloads
+   - GPU idle = auto shutdown on AutoDL!
+
+### Workflow
+
+**When user asks to run something on server:**
+1. Create/modify script files in `scripts/` directory
+2. User will `git push` from Germany
+3. User will `git pull` and execute on China server
+4. User reports results back for analysis
+
+### Important Paths on AutoDL Server
+
+```bash
+CARLA_ROOT=/root/autodl-tmp/carla
+B2D_ROOT=/root/autodl-tmp/Bench2Drive
+```
+
+### Task Tracking
+
+See `.tasks/` directory for:
+- `ENVIRONMENT.md` - Detailed platform setup
+- `TODO.md` - Current tasks and progress
+
+---
+
 ## Project Overview
 
 Bench2Drive is a closed-loop autonomous driving benchmark built on CARLA 0.9.15 for evaluating end-to-end driving agents across 220 diverse routes. Published at NeurIPS 2024 Datasets and Benchmarks Track.

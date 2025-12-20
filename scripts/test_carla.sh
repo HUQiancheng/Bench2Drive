@@ -1,107 +1,132 @@
 #!/bin/bash
 # CARLA 启动和连接测试脚本
-# 在 AutoDL 服务器上运行
+# 前置条件: 先运行 fix_carla_env.sh
 
 set -e
 
-export CARLA_ROOT=/root/autodl-tmp/carla
-export SDL_VIDEODRIVER=offscreen
+CARLA_USER_HOME=/home/carla
 
+echo "=========================================="
+echo "  CARLA 启动测试"
+echo "=========================================="
+
+# ============================================
+# Step 1: 清理
+# ============================================
+echo ""
 echo "=== Step 1: 清理残留进程 ==="
 pkill -9 CarlaUE4 2>/dev/null || true
-pkill -9 CarlaUE4-Linux 2>/dev/null || true
 sleep 2
 
+# ============================================
+# Step 2: 检查前置条件
+# ============================================
 echo ""
 echo "=== Step 2: 检查环境 ==="
-echo "CARLA_ROOT: $CARLA_ROOT"
-echo "Python版本:"
-python3 --version
 
-echo ""
-echo "=== Step 3: 检查 Vulkan ==="
-if command -v vulkaninfo &> /dev/null; then
-    vulkaninfo 2>&1 | head -10 || echo "Vulkan 检测失败"
-else
-    echo "vulkaninfo 未安装，尝试安装..."
-    apt-get update && apt-get install -y vulkan-tools mesa-vulkan-drivers 2>/dev/null || true
-    vulkaninfo 2>&1 | head -10 || echo "Vulkan 仍然失败"
+if [ ! -f "$CARLA_USER_HOME/start_carla.sh" ]; then
+    echo "错误: 请先运行 bash scripts/fix_carla_env.sh"
+    exit 1
 fi
 
-echo ""
-echo "=== Step 4: 检查 GPU ==="
-nvidia-smi --query-gpu=index,name,driver_version --format=csv
+if ! conda env list | grep -q "carla37"; then
+    echo "错误: carla37 环境不存在，请先运行 bash scripts/fix_carla_env.sh"
+    exit 1
+fi
 
-echo ""
-echo "=== Step 5: 启动 CARLA (无头模式, root用户) ==="
-cd $CARLA_ROOT
+echo "前置条件检查通过"
 
-# 直接以 root 运行 (在容器环境中通常是可以的)
-chmod +x CarlaUE4.sh
-./CarlaUE4.sh -RenderOffScreen -quality-level=Low -carla-port=2000 -nosound &
+# ============================================
+# Step 3: 启动 CARLA (以 carla 用户)
+# ============================================
+echo ""
+echo "=== Step 3: 启动 CARLA ==="
+su - carla -c "bash start_carla.sh" &
 CARLA_PID=$!
-echo "CARLA PID: $CARLA_PID"
+echo "后台启动 CARLA, PID: $CARLA_PID"
 
+# ============================================
+# Step 4: 等待启动
+# ============================================
 echo ""
-echo "=== Step 6: 等待 CARLA 启动 (60秒) ==="
-for i in {1..60}; do
+echo "=== Step 4: 等待 CARLA 启动 (90秒) ==="
+echo "首次启动需要加载shader，可能较慢..."
+
+for i in {1..90}; do
     echo -n "."
     sleep 1
-    # 每10秒检查一次进程
-    if [ $((i % 10)) -eq 0 ]; then
-        if ! ps -p $CARLA_PID > /dev/null 2>&1; then
-            echo ""
-            echo "警告: CARLA 进程已退出!"
-            echo "查看可能的错误日志..."
-            dmesg | tail -20 2>/dev/null || true
-            break
+
+    # 每15秒检查
+    if [ $((i % 15)) -eq 0 ]; then
+        echo ""
+        if pgrep -u carla CarlaUE4 > /dev/null 2>&1; then
+            echo "[${i}s] CARLA 进程运行中..."
+        else
+            echo "[${i}s] 警告: CARLA 进程未找到"
         fi
     fi
 done
 echo ""
 
+# ============================================
+# Step 5: 检查状态
+# ============================================
 echo ""
-echo "=== Step 7: 检查进程状态 ==="
-ps aux | grep -E "CarlaUE4|carla" | grep -v grep || echo "CARLA 进程未找到"
+echo "=== Step 5: 检查进程状态 ==="
+ps aux | grep -E "CarlaUE4" | grep -v grep || echo "未找到 CARLA 进程"
 
 echo ""
-echo "=== Step 8: 检查端口 ==="
-netstat -tlnp 2>/dev/null | grep 2000 || ss -tlnp | grep 2000 || echo "端口 2000 未监听"
+echo "=== Step 6: 检查端口 ==="
+netstat -tlnp 2>/dev/null | grep 2000 || echo "端口 2000 未监听 (可能还在启动)"
 
+# ============================================
+# Step 7: Python 连接测试
+# ============================================
 echo ""
-echo "=== Step 9: 测试 Python 连接 ==="
-# 使用 pip 安装的 carla 而不是 egg
+echo "=== Step 7: Python 连接测试 ==="
+
+# 激活 carla37 环境运行测试
+source $(conda info --base)/etc/profile.d/conda.sh
+conda activate carla37
+
 python3 << 'EOF'
 import sys
 print(f"Python: {sys.version}")
-print(f"Path: {sys.path[:3]}...")
 
-try:
-    import carla
-    print(f"carla 模块加载成功")
-except ImportError as e:
-    print(f"carla 导入失败: {e}")
-    print("尝试安装 carla wheel...")
-    import subprocess
-    subprocess.run([sys.executable, "-m", "pip", "install",
-                   "/root/autodl-tmp/carla/PythonAPI/carla/dist/carla-0.9.15-cp37-cp37m-manylinux_2_27_x86_64.whl"],
-                   check=True)
-    import carla
+import carla
+print("carla 模块加载成功")
 
+print("尝试连接 CARLA...")
 try:
     client = carla.Client('localhost', 2000)
-    client.set_timeout(10.0)
+    client.set_timeout(30.0)  # 首次连接给更长时间
     version = client.get_server_version()
-    print(f"SUCCESS! CARLA Version: {version}")
-
+    print(f"")
+    print(f"========================================")
+    print(f"  SUCCESS! CARLA 连接成功!")
+    print(f"  Server Version: {version}")
     world = client.get_world()
-    map_name = world.get_map().name
-    print(f"Current Map: {map_name}")
-
+    print(f"  Current Map: {world.get_map().name}")
+    print(f"========================================")
 except Exception as e:
+    print(f"")
     print(f"连接失败: {e}")
-    print("CARLA 可能未成功启动，请检查上面的日志")
+    print(f"")
+    print(f"可能原因:")
+    print(f"  1. CARLA 还在启动中 (shader编译)")
+    print(f"  2. Vulkan/GPU 驱动问题")
+    print(f"")
+    print(f"调试步骤:")
+    print(f"  - 检查进程: ps aux | grep CarlaUE4")
+    print(f"  - 查看日志: 在另一个终端运行 CARLA 看输出")
 EOF
 
+conda deactivate
+
 echo ""
-echo "=== 测试完成 ==="
+echo "=========================================="
+echo "  测试完成"
+echo "=========================================="
+echo ""
+echo "如果连接成功，下一步运行: bash scripts/test_npc_agent.sh"
+echo "如果失败，尝试手动启动看日志: su - carla -c 'bash start_carla.sh'"

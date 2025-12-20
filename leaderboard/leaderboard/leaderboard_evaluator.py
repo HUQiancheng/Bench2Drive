@@ -200,7 +200,17 @@ class LeaderboardEvaluator(object):
         """
         self.carla_path = os.environ["CARLA_ROOT"]
         args.port = find_free_port(args.port)
-        cmd1 = f"{os.path.join(self.carla_path, 'CarlaUE4.sh')} -RenderOffScreen -nosound -carla-rpc-port={args.port} -graphicsadapter={args.gpu_rank}"
+
+        # Build CARLA command
+        carla_script = os.path.join(self.carla_path, 'CarlaUE4.sh')
+        carla_args = f"-RenderOffScreen -nosound -carla-rpc-port={args.port} -graphicsadapter={args.gpu_rank}"
+
+        # If running as root, use 'su' to launch CARLA as 'carla' user (CARLA refuses root privileges)
+        if os.geteuid() == 0:
+            cmd1 = f"su - carla -c 'cd {self.carla_path} && ./CarlaUE4.sh {carla_args}'"
+        else:
+            cmd1 = f"{carla_script} {carla_args}"
+
         self.server = subprocess.Popen(cmd1, shell=True, preexec_fn=os.setsid)
         print(cmd1, self.server.returncode, flush=True)
         atexit.register(os.killpg, self.server.pid, signal.SIGKILL)

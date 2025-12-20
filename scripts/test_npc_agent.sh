@@ -1,33 +1,33 @@
 #!/bin/bash
-# NpcAgent 评估测试脚本
-# 在 AutoDL 服务器上运行
+# NpcAgent 评估测试
+# 前提: CARLA 已运行 (bash scripts/run_carla.sh)
 
 set -e
 
-# 环境变量
-export CARLA_ROOT=/root/autodl-tmp/carla
-export PYTHONPATH=$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.15-py3.7-linux-x86_64.egg:$PYTHONPATH
-
-# Bench2Drive 路径 (根据实际位置调整)
+CARLA_ROOT=/root/autodl-tmp/carla
 B2D_ROOT=/root/autodl-tmp/Bench2Drive
+
+echo "========================================"
+echo "  NpcAgent 评估测试"
+echo "========================================"
+
+# 检查 CARLA
+echo ""
+echo "[1/2] 检查 CARLA..."
+if ! pgrep -f CarlaUE4 > /dev/null; then
+    echo "CARLA 未运行，请先执行: bash scripts/run_carla.sh"
+    exit 1
+fi
+echo "CARLA 运行中 ✓"
+
+# 运行评估
+echo ""
+echo "[2/2] 运行 NpcAgent 评估..."
 cd $B2D_ROOT
 
-echo "=== NpcAgent 评估测试 ==="
-echo "Bench2Drive: $B2D_ROOT"
-echo "CARLA: $CARLA_ROOT"
-echo ""
+source $(conda info --base)/etc/profile.d/conda.sh
+conda activate carla37
 
-# 确保 CARLA 在运行
-if ! ps aux | grep -v grep | grep CarlaUE4 > /dev/null; then
-    echo "CARLA 未运行，先启动..."
-    cd $CARLA_ROOT
-    ./CarlaUE4.sh -RenderOffScreen -quality-level=Low -carla-port=2000 &
-    echo "等待 CARLA 启动..."
-    sleep 30
-    cd $B2D_ROOT
-fi
-
-echo "开始评估..."
 mkdir -p results
 
 python leaderboard/leaderboard/leaderboard_evaluator.py \
@@ -42,6 +42,7 @@ python leaderboard/leaderboard/leaderboard_evaluator.py \
     --timeout=600
 
 echo ""
-echo "=== 评估完成 ==="
-echo "结果文件: results/npc_test.json"
-cat results/npc_test.json | head -30
+echo "========================================"
+echo "  评估完成"
+echo "========================================"
+echo "结果: results/npc_test.json"

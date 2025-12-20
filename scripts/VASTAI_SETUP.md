@@ -33,6 +33,37 @@ Segmentation fault
 **原因**：NVIDIA Driver 550+/570+/580+ 与 CARLA 0.9.15 不兼容
 **解决**：选择 Driver 535 或更低版本的机器
 
+### 问题4: Python 模块缺失
+```
+ModuleNotFoundError: No module named 'srunner'
+ModuleNotFoundError: No module named 'six'
+ModuleNotFoundError: No module named 'agents'
+```
+**原因**：未设置 PYTHONPATH 和缺少依赖包
+**解决**：设置环境变量并安装依赖（见下方配置步骤）
+
+### 问题5: leaderboard_evaluator 自动启动 CARLA 失败
+```
+/root/qch_ws/carla/CarlaUE4.sh ... None
+Refusing to run with the root privileges.
+```
+**原因**：评估脚本以 root 运行，自动启动的 CARLA 拒绝 root
+**解决**：修改 `leaderboard_evaluator.py`，root 时用 `su - carla -c` 启动 CARLA（已合并到仓库）
+
+### 问题6: 路由 ID 不匹配
+```
+ValueError: Couldn't find the route with id '0' inside the given routes file
+```
+**原因**：`drivetransformer_bench2drive_dev10.xml` 中路由 id 从 3514 开始，不是 0
+**解决**：去掉 `--routes-subset` 参数，或使用正确的 id（如 `--routes-subset=3514`）
+
+### 问题7: 缺少额外地图
+```
+Town13 等地图不存在
+```
+**原因**：Bench2Drive 需要 Town12、Town13 等额外地图，默认 CARLA 不包含
+**解决**：下载并导入 AdditionalMaps（见下方配置步骤）
+
 ---
 
 ## 完整配置步骤
@@ -93,6 +124,18 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 mkdir -p ~/qch_ws/carla && cd ~/qch_ws/carla
 wget https://carla-releases.s3.us-east-005.backblazeb2.com/Linux/CARLA_0.9.15.tar.gz
 tar -xzf CARLA_0.9.15.tar.gz
+```
+
+### 6.1 下载额外地图（Bench2Drive 需要 Town12/Town13）
+```bash
+cd ~/qch_ws/carla/Import
+wget https://carla-releases.s3.us-east-005.backblazeb2.com/Linux/AdditionalMaps_0.9.15.tar.gz
+cd ..
+bash ImportAssets.sh
+
+# 验证地图已导入
+ls CarlaUE4/Content/Carla/Maps/ | grep -i town1
+# 应该看到 Town10HD, Town11, Town12, Town13 等
 ```
 
 ### 7. 创建 Python 3.7 环境

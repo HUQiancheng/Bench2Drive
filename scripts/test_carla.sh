@@ -13,27 +13,28 @@ pkill -9 CarlaUE4-Linux 2>/dev/null || true
 sleep 2
 
 echo ""
-echo "=== Step 2: 启动 CARLA (无头模式) ==="
+echo "=== Step 2: 创建非root用户 (CARLA要求) ==="
+# 创建 carla 用户 (如果不存在)
+if ! id "carla" &>/dev/null; then
+    useradd -m carla
+    echo "创建用户 carla"
+fi
+
+# 给 carla 用户访问 CARLA 目录的权限
+chmod -R 755 $CARLA_ROOT
+chown -R carla:carla $CARLA_ROOT
+
+echo ""
+echo "=== Step 3: 启动 CARLA (无头模式, 以carla用户运行) ==="
 cd $CARLA_ROOT
 
-# 绕过 root 用户检查 - 直接运行二进制文件
-# CARLA 0.9.15 的可执行文件路径
-CARLA_BIN="$CARLA_ROOT/CarlaUE4/Binaries/Linux/CarlaUE4-Linux-Shipping"
-
-if [ -f "$CARLA_BIN" ]; then
-    echo "使用直接二进制启动 (绕过root检查)..."
-    "$CARLA_BIN" CarlaUE4 -RenderOffScreen -quality-level=Low -carla-server -carla-port=2000 &
-else
-    echo "二进制文件不存在，尝试修改启动脚本..."
-    # 备份并修改 CarlaUE4.sh 绕过 root 检查
-    sed -i 's/if \[ "\$EUID" -eq 0 \]/if false \&\& [ "$EUID" -eq 0 ]/' CarlaUE4.sh 2>/dev/null || true
-    ./CarlaUE4.sh -RenderOffScreen -quality-level=Low -carla-port=2000 &
-fi
+# 以 carla 用户启动 CARLA
+su - carla -c "cd $CARLA_ROOT && ./CarlaUE4.sh -RenderOffScreen -quality-level=Low -carla-port=2000" &
 CARLA_PID=$!
 echo "CARLA PID: $CARLA_PID"
 
 echo ""
-echo "=== Step 3: 等待 CARLA 启动 (30秒) ==="
+echo "=== Step 4: 等待 CARLA 启动 (30秒) ==="
 for i in {1..30}; do
     echo -n "."
     sleep 1
@@ -41,11 +42,11 @@ done
 echo ""
 
 echo ""
-echo "=== Step 4: 检查进程 ==="
+echo "=== Step 5: 检查进程 ==="
 ps aux | grep CarlaUE4 | grep -v grep || echo "警告: CARLA 进程未找到!"
 
 echo ""
-echo "=== Step 5: 测试 Python 连接 ==="
+echo "=== Step 6: 测试 Python 连接 ==="
 python3 << 'EOF'
 import carla
 import sys

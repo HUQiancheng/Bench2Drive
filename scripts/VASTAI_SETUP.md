@@ -146,6 +146,30 @@ pip install ~/qch_ws/carla/PythonAPI/carla/dist/carla-0.9.15-cp37-cp37m-manylinu
 pip install numpy pygame
 ```
 
+### 7.1 安装 Bench2Drive 依赖
+```bash
+conda activate carla37
+
+# scenario_runner 依赖
+pip install py-trees==0.8.3 networkx==2.2 Shapely==1.7.1 psutil xmlschema==1.0.18 ephem tabulate six simple-watchdog-timer matplotlib
+
+# leaderboard 依赖
+pip install dictor requests opencv-python pexpect transforms3d
+```
+
+### 7.2 永久设置环境变量（写入 .bashrc）
+```bash
+cat >> ~/.bashrc << 'EOF'
+
+# Bench2Drive 环境变量
+export CARLA_ROOT=~/qch_ws/carla
+export PYTHONPATH=$CARLA_ROOT/PythonAPI/carla:$CARLA_ROOT/PythonAPI/carla/agents:$PYTHONPATH
+export PYTHONPATH=~/qch_ws/Bench2Drive/leaderboard:~/qch_ws/Bench2Drive/scenario_runner:$PYTHONPATH
+EOF
+
+source ~/.bashrc
+```
+
 ### 8. 创建非 root 用户
 ```bash
 useradd -m -s /bin/bash carla

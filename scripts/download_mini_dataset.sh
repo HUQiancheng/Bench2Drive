@@ -4,7 +4,7 @@
 # ============================================================================
 # Downloads the 10 representative clips (~3.2GB) from HuggingFace
 #
-# USAGE: bash download_mini_dataset.sh
+# USAGE: HF_TOKEN=your_token bash download_mini_dataset.sh
 # ============================================================================
 
 set -u
@@ -18,9 +18,14 @@ echo ""
 
 mkdir -p "$DATA_DIR"
 
-python << 'EOF'
+python << EOF
 import os
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, login
+
+# Login with token from environment
+hf_token = os.environ.get("HF_TOKEN")
+if hf_token:
+    login(token=hf_token)
 
 DATA_DIR = "/workspace/data/Bench2Drive-Mini"
 

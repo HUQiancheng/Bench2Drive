@@ -1,6 +1,6 @@
 #!/bin/bash
 # Download Bench2Drive BASE dataset (400GB, 1000 clips)
-# Run with: bash scripts/download_base_dataset.sh
+# Run with: HF_TOKEN=your_token bash scripts/download_base_dataset.sh
 
 set -e
 
@@ -17,9 +17,14 @@ mkdir -p "${DATA_DIR}"
 cd "${DATA_DIR}"
 
 # Download using huggingface_hub
-python << 'EOF'
-from huggingface_hub import snapshot_download
+python << EOF
 import os
+from huggingface_hub import snapshot_download, login
+
+# Login with token from environment
+hf_token = os.environ.get("HF_TOKEN")
+if hf_token:
+    login(token=hf_token)
 
 print("Starting download from HuggingFace...")
 print("This will take a while for 400GB. Download is resumable if interrupted.")

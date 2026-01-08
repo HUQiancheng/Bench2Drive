@@ -8,6 +8,7 @@ set -e
 # Environment setup
 export CARLA_ROOT=/workspace/carla
 export IS_BENCH2DRIVE=True
+export SAVE_PATH=/workspace/Bench2Drive/results/uniad_debug/
 export CUDA_HOME=/root/miniconda3/envs/b2d_zoo
 export PATH=$CUDA_HOME/bin:$PATH
 
@@ -25,7 +26,6 @@ ROUTES=/workspace/Bench2Drive/leaderboard/data/drivetransformer_bench2drive_dev1
 TEAM_AGENT=/workspace/Bench2Drive/leaderboard/team_code/uniad_b2d_agent.py
 TEAM_CONFIG="Bench2DriveZoo/adzoo/uniad/configs/stage2_e2e/base_e2e_b2d.py+/workspace/Bench2DriveZoo/ckpts/uniad_base_b2d.pth"
 CHECKPOINT_ENDPOINT=/workspace/Bench2Drive/results/uniad_debug.json
-SAVE_PATH=/workspace/Bench2Drive/results/uniad_debug/
 
 cd /workspace/Bench2Drive
 mkdir -p results
@@ -59,10 +59,11 @@ echo "Routes: $ROUTES"
 echo "Agent: $TEAM_AGENT"
 echo "=========================================="
 
-# Run evaluation - use first route ID from dev10 file (3514)
+# Run evaluation - use route 25378 (Town03, available in base CARLA)
+# Note: Routes using Town11-15 require CARLA Additional Maps package
 python /workspace/Bench2Drive/leaderboard/leaderboard/leaderboard_evaluator.py \
     --routes=${ROUTES} \
-    --routes-subset=3514 \
+    --routes-subset=25378 \
     --repetitions=1 \
     --track=SENSORS \
     --checkpoint=${CHECKPOINT_ENDPOINT} \

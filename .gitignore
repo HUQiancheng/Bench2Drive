@@ -1,2 +1,16 @@
 __pycache__/
 download_time.txt
+*.png
+
+# Evaluation results
+results/
+*.json
+!leaderboard/data/*.xml
+
+# Logs
+*.log
+carla.log
+
+# Temporary files
+*.pyc
+.cache/

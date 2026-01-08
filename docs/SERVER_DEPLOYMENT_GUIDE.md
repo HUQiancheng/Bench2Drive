@@ -766,27 +766,57 @@ export PYTHONPATH="${PYTHONPATH}:/workspace/Bench2DriveZoo"
 export PYTHONPATH="${PYTHONPATH}:${CARLA_ROOT}/PythonAPI/carla"
 ```
 
-### 10.7 Run UniAD Evaluation
+### 10.7 Run UniAD Evaluation (Official Way)
+
+Use the provided `run_uniad_debug.sh` script which follows the official `leaderboard/scripts/run_evaluation.sh` format:
 
 ```bash
 conda activate b2d_zoo
 cd /workspace/Bench2Drive
-
-# Set all environment variables (see 10.6)
-
-python leaderboard/leaderboard/leaderboard_evaluator.py \
-    --routes=leaderboard/data/drivetransformer_bench2drive_dev10.xml \
-    --routes-subset=0 \
-    --repetitions=1 \
-    --track=SENSORS \
-    --checkpoint=results/uniad_debug.json \
-    --agent=team_code/uniad_b2d_agent.py \
-    --agent-config="Bench2DriveZoo/adzoo/uniad/configs/stage2_e2e/base_e2e_b2d.py+/workspace/Bench2DriveZoo/ckpts/uniad_base_b2d.pth" \
-    --port=2000 \
-    --timeout=1200
+bash run_uniad_debug.sh
 ```
 
-### 10.8 Common Errors
+**Key environment variables (from official script):**
+```bash
+export CARLA_ROOT=/workspace/carla
+export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI
+export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
+export PYTHONPATH=$PYTHONPATH:leaderboard
+export PYTHONPATH=$PYTHONPATH:leaderboard/team_code
+export PYTHONPATH=$PYTHONPATH:scenario_runner
+export SAVE_PATH=results/uniad_debug/  # Enables BEV sensor (100m radius)
+export IS_BENCH2DRIVE=True
+```
+
+**Critical: `--routes-subset` requires actual route ID (not index):**
+```bash
+# WRONG - route index doesn't exist
+--routes-subset=0
+
+# CORRECT - use actual route ID from XML
+--routes-subset=25378  # Route in Town03
+```
+
+**Available routes in dev10 (by town):**
+| Route ID | Town | Notes |
+|----------|------|-------|
+| 25378 | Town03 | Available in base CARLA |
+| 25381 | Town05 | Available in base CARLA |
+| 27494 | Town04 | Available in base CARLA |
+| 3514, 3255 | Town13 | Requires Additional Maps |
+| 26405 | Town12 | Requires Additional Maps |
+
+### 10.8 Generate Video from Results
+
+```bash
+conda activate b2d_zoo
+cd /workspace/Bench2Drive
+python tools/generate_video.py -f results/uniad_debug/
+```
+
+Or manually set the paths in `tools/generate_video.py` and run it.
+
+### 10.9 Common Errors
 
 | Error | Cause | Solution |
 |-------|-------|----------|
@@ -796,8 +826,13 @@ python leaderboard/leaderboard/leaderboard_evaluator.py \
 | `No module named 'agents'` | Missing CARLA PythonAPI | Add `$CARLA_ROOT/PythonAPI/carla` to PYTHONPATH |
 | `No module named 'uniad_b2d_agent'` | team_code not in path | Add `leaderboard/team_code` to PYTHONPATH |
 | `libtiff.so.5 not found` | Missing system library | `apt-get install libtiff5-dev` |
+| `Map 'Town13' not found` | Missing Additional Maps | Use Town01-05/Town10 routes, or download Additional Maps |
+| `Illegal sensor extrinsics (3.0m)` | SAVE_PATH not exported | Export `SAVE_PATH` to enable 100m radius for BEV sensor |
+| `route with id '0' not found` | Wrong routes-subset value | Use actual route ID from XML (e.g., 25378), not index |
+| `Agent's sensors were invalid` | Stale pyc cache or SAVE_PATH | Delete `__pycache__/`, export SAVE_PATH, clear old results |
+| Evaluation completes instantly | Old results JSON exists | Delete `results/*.json` or use `--resume=False` |
 
-### 10.9 Memory Requirements
+### 10.10 Memory Requirements
 
 | Model | VRAM (with CARLA) |
 |-------|-------------------|
@@ -807,6 +842,40 @@ python leaderboard/leaderboard/leaderboard_evaluator.py \
 | VAD-Base | ~14-16 GB |
 
 **Tip:** Use `-quality-level=Low` for CARLA to save ~3GB VRAM.
+
+### 10.11 Lessons Learned (Debugging Session Summary)
+
+**Key insights from debugging UniAD evaluation:**
+
+1. **SAVE_PATH is Critical**: The `SAVE_PATH` environment variable does double duty:
+   - Tells the agent where to save results (RGB frames, BEV images, metadata)
+   - Triggers `MAX_ALLOWED_RADIUS_SENSOR = 100.0m` in `agent_wrapper.py` (line 25-29)
+   - Without it, the BEV sensor at z=50m fails validation (default 3m limit)
+
+2. **Route IDs vs Indices**: The `--routes-subset` parameter expects **actual route IDs** from the XML file, not sequential indices. Check route IDs with:
+   ```bash
+   grep 'route id=' leaderboard/data/drivetransformer_bench2drive_dev10.xml
+   ```
+
+3. **Clear Caches When Debugging**: Python caches compiled bytecode. When modifying core files, always:
+   ```bash
+   find /workspace/Bench2Drive -name "*.pyc" -delete
+   rm -rf /workspace/Bench2Drive/leaderboard/leaderboard/__pycache__
+   ```
+
+4. **CARLA Additional Maps**: Base CARLA 0.9.15 only includes Town01-05 and Town10HD. For Town11-15, download Additional Maps (~20GB):
+   ```bash
+   wget https://carla-releases.s3.us-east-005.backblazeb2.com/Linux/CARLA_0.9.15_AdditionalMaps.tar.gz
+   ```
+
+5. **Evaluation Speed**: UniAD-Base runs at ~0.017x real-time (each game second = ~60 real seconds). A 95m route takes ~20 minutes.
+
+6. **Official Script Format**: Always use the environment variable format from `leaderboard/scripts/run_evaluation.sh`. The key variables are:
+   - `CARLA_ROOT`, `PYTHONPATH`, `SAVE_PATH`, `IS_BENCH2DRIVE`
+   - `PORT`, `TM_PORT`, `GPU_RANK`
+   - `ROUTES`, `TEAM_AGENT`, `TEAM_CONFIG`
+
+7. **Video Generation**: Use `tools/generate_video.py` after evaluation. It reads from `rgb_front/` and `meta/` folders.
 
 ---
 

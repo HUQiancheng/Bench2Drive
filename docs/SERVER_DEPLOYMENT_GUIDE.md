@@ -659,6 +659,157 @@ export PLANNER_TYPE=only_traj      # For TCP model
 
 ---
 
+## 10. Running Vision Models (UniAD, VAD)
+
+Vision-based models from Bench2DriveZoo require a **separate Python 3.8 environment** with custom-compiled CUDA extensions.
+
+### 10.1 Critical: CUDA Version Matching
+
+**Problem:** Bench2DriveZoo compiles CUDA kernels at install time. The system CUDA (nvcc) must match PyTorch's CUDA version exactly, or you'll get:
+
+```
+RuntimeError: The detected CUDA version (12.1) mismatches the version that was used to compile PyTorch (11.8)
+```
+
+**Solution:** Install CUDA toolkit via conda BEFORE building:
+
+```bash
+# Create Python 3.8 environment (required for UniAD/VAD)
+conda create -n b2d_zoo python=3.8 -y
+conda activate b2d_zoo
+
+# Install CUDA 11.8 toolkit via conda (provides matching nvcc)
+conda install -c "nvidia/label/cuda-11.8.0" cuda-toolkit -y
+
+# Now install PyTorch with matching CUDA version
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
+
+### 10.2 Build Bench2DriveZoo
+
+```bash
+conda activate b2d_zoo
+
+# Set CUDA_HOME to conda's CUDA installation
+export CUDA_HOME=$CONDA_PREFIX
+export PATH=$CONDA_PREFIX/bin:$PATH
+
+# Verify nvcc version matches PyTorch
+nvcc --version  # Should show 11.8
+
+# Install build tools
+pip install ninja packaging
+
+# Build (takes 10-20 minutes - compiles CUDA kernels)
+cd /workspace/Bench2DriveZoo
+pip install -v -e .
+```
+
+### 10.3 Fix Pillow/NumPy Compatibility
+
+**Problem:** Pillow 10.x requires numpy >= 1.21, but Bench2DriveZoo pins numpy==1.20.0 for numba compatibility.
+
+```
+AttributeError: module 'numpy.typing' has no attribute 'NDArray'
+```
+
+**Solution:** Downgrade Pillow:
+```bash
+pip install "pillow<10.0"
+```
+
+### 10.4 Download Model Checkpoints
+
+```bash
+mkdir -p /workspace/Bench2DriveZoo/ckpts
+cd /workspace/Bench2DriveZoo/ckpts
+
+# ResNet-101 DCN backbone (required)
+wget https://huggingface.co/rethinklab/Bench2DriveZoo/resolve/main/r101_dcn_fcos3d_pretrain.pth
+
+# UniAD-Base checkpoint
+wget https://huggingface.co/rethinklab/Bench2DriveZoo/resolve/main/uniad_base_b2d.pth
+```
+
+### 10.5 Link Components
+
+```bash
+# Link CARLA Python API to b2d_zoo environment
+echo "/workspace/carla/PythonAPI/carla/dist/carla-0.9.15-py3.7-linux-x86_64.egg" > \
+    $CONDA_PREFIX/lib/python3.8/site-packages/carla.pth
+
+# Install libtiff (required by CARLA Python API)
+apt-get install -y libtiff5-dev
+
+# Link team_code to Bench2Drive
+cd /workspace/Bench2Drive/leaderboard
+mkdir -p team_code
+ln -sf /workspace/Bench2DriveZoo/team_code/* ./team_code/
+
+# Link Bench2DriveZoo
+cd /workspace/Bench2Drive
+ln -sf /workspace/Bench2DriveZoo ./Bench2DriveZoo
+```
+
+### 10.6 PYTHONPATH Setup (Critical!)
+
+The evaluation requires multiple paths. **Missing any will cause ModuleNotFoundError:**
+
+```bash
+export CARLA_ROOT=/workspace/carla
+export IS_BENCH2DRIVE=True
+export PYTHONPATH="/workspace/Bench2Drive"
+export PYTHONPATH="${PYTHONPATH}:/workspace/Bench2Drive/scenario_runner"
+export PYTHONPATH="${PYTHONPATH}:/workspace/Bench2Drive/leaderboard"
+export PYTHONPATH="${PYTHONPATH}:/workspace/Bench2Drive/leaderboard/team_code"  # For agent import!
+export PYTHONPATH="${PYTHONPATH}:/workspace/Bench2DriveZoo"
+export PYTHONPATH="${PYTHONPATH}:${CARLA_ROOT}/PythonAPI/carla"
+```
+
+### 10.7 Run UniAD Evaluation
+
+```bash
+conda activate b2d_zoo
+cd /workspace/Bench2Drive
+
+# Set all environment variables (see 10.6)
+
+python leaderboard/leaderboard/leaderboard_evaluator.py \
+    --routes=leaderboard/data/drivetransformer_bench2drive_dev10.xml \
+    --routes-subset=0 \
+    --repetitions=1 \
+    --track=SENSORS \
+    --checkpoint=results/uniad_debug.json \
+    --agent=team_code/uniad_b2d_agent.py \
+    --agent-config="Bench2DriveZoo/adzoo/uniad/configs/stage2_e2e/base_e2e_b2d.py+/workspace/Bench2DriveZoo/ckpts/uniad_base_b2d.pth" \
+    --port=2000 \
+    --timeout=1200
+```
+
+### 10.8 Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `CUDA version mismatch` | System nvcc != PyTorch CUDA | Install CUDA toolkit via conda |
+| `NDArray not found` | Pillow 10.x + numpy 1.20 | `pip install "pillow<10.0"` |
+| `No module named 'srunner'` | Missing PYTHONPATH | Add scenario_runner to PYTHONPATH |
+| `No module named 'agents'` | Missing CARLA PythonAPI | Add `$CARLA_ROOT/PythonAPI/carla` to PYTHONPATH |
+| `No module named 'uniad_b2d_agent'` | team_code not in path | Add `leaderboard/team_code` to PYTHONPATH |
+| `libtiff.so.5 not found` | Missing system library | `apt-get install libtiff5-dev` |
+
+### 10.9 Memory Requirements
+
+| Model | VRAM (with CARLA) |
+|-------|-------------------|
+| UniAD-Tiny | ~10 GB |
+| UniAD-Base | ~14-16 GB |
+| VAD-Tiny | ~10 GB |
+| VAD-Base | ~14-16 GB |
+
+**Tip:** Use `-quality-level=Low` for CARLA to save ~3GB VRAM.
+
+---
+
 ## Appendix A: Complete Setup Script
 
 Save this as `setup_bench2drive.sh`:
